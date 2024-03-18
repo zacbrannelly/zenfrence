@@ -50,8 +50,9 @@ class LinearLayer:
   Models: y = xW^T + b
   """
 
-  def __init__(self, config, input_size=None, output_size=None, weights=None, bias=None):
+  def __init__(self, weight_name, config, input_size=None, output_size=None, weights=None, bias=None):
     self.config = config
+    self.weight_name = weight_name
     self.input_size = input_size
     self.output_size = output_size
 
@@ -64,6 +65,9 @@ class LinearLayer:
     self.bias = bias
     if not bias:
       self.bias = torch.zeros(output_size)
+
+  def load(self):
+    self.weights = load_weight_tensor(f"{self.weight_name}")
 
   def forward(self, x):
     # TODO: Validate that the input size matches the weights.
@@ -163,19 +167,39 @@ class LlamaAttention:
     self.head_dim = self.config["hidden_size"] // self.config["num_attention_heads"]
     self.num_key_value_groups = self.config["num_attention_heads"] // self.config["num_key_value_heads"]
 
-    self.query_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["num_attention_heads"] * self.head_dim)
-    self.key_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["num_key_value_heads"] * self.head_dim)
-    self.value_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["num_key_value_heads"] * self.head_dim)
-    self.output_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["hidden_size"])
+    self.query_projection = LinearLayer(
+      f"model.layers.{self.layer_idx}.self_attn.q_proj.weight",
+      config,
+      input_size=self.config["hidden_size"],
+      output_size=self.config["num_attention_heads"] * self.head_dim
+    )
+    self.key_projection = LinearLayer(
+      f"model.layers.{self.layer_idx}.self_attn.k_proj.weight",
+      config,
+      input_size=self.config["hidden_size"],
+      output_size=self.config["num_key_value_heads"] * self.head_dim
+    )
+    self.value_projection = LinearLayer(
+      f"model.layers.{self.layer_idx}.self_attn.v_proj.weight",
+      config,
+      input_size=self.config["hidden_size"],
+      output_size=self.config["num_key_value_heads"] * self.head_dim
+    )
+    self.output_projection = LinearLayer(
+      f"model.layers.{self.layer_idx}.self_attn.o_proj.weight",
+      config,
+      input_size=self.config["hidden_size"],
+      output_size=self.config["hidden_size"]
+    )
 
     self.rotation_embedding = LlamaRotationEmbedding(self.head_dim, config)
 
   def load(self):
     # Load weights from the model.
-    self.query_projection.weights = load_weight_tensor(f"model.layers.{self.layer_idx}.self_attn.q_proj.weight")
-    self.key_projection.weights = load_weight_tensor(f"model.layers.{self.layer_idx}.self_attn.k_proj.weight")
-    self.value_projection.weights = load_weight_tensor(f"model.layers.{self.layer_idx}.self_attn.v_proj.weight")
-    self.output_projection.weights = load_weight_tensor(f"model.layers.{self.layer_idx}.self_attn.o_proj.weight")
+    self.query_projection.load()
+    self.key_projection.load()
+    self.value_projection.load()
+    self.output_projection.load()
   
   def forward(self, x, position_ids=None, attention_mask=None):
     # x is of shape (batch_size, sequence_length, hidden_size).
@@ -250,18 +274,34 @@ class MLP:
     self.layer_idx = layer_idx
     self.hidden_size = config["hidden_size"]
     self.intermediate_size = config["intermediate_size"]
-    self.gate_proj = LinearLayer(config, input_size=self.hidden_size, output_size=self.intermediate_size)
-    self.up_proj = LinearLayer(config, input_size=self.hidden_size, output_size=self.intermediate_size)
-    self.down_proj = LinearLayer(config, input_size=self.intermediate_size, output_size=self.hidden_size)
+
+    self.gate_proj = LinearLayer(
+      f"model.layers.{self.layer_idx}.mlp.gate_proj.weight",
+      config,
+      input_size=self.hidden_size,
+      output_size=self.intermediate_size
+    )
+    self.up_proj = LinearLayer(
+      f"model.layers.{self.layer_idx}.mlp.up_proj.weight",
+      config,
+      input_size=self.hidden_size,
+      output_size=self.intermediate_size
+    )
+    self.down_proj = LinearLayer(
+      f"model.layers.{self.layer_idx}.mlp.down_proj.weight",
+      config,
+      input_size=self.intermediate_size,
+      output_size=self.hidden_size
+    )
 
     # TODO: The Llama paper says use SwiGLU, but the code uses SiLU.
     # TODO: Implement this part so I can understand what is happening.
     self.activation = torch.nn.SiLU()
 
   def load(self):
-    self.gate_proj.weights = load_weight_tensor(f"model.layers.{self.layer_idx}.mlp.gate_proj.weight")
-    self.up_proj.weights = load_weight_tensor(f"model.layers.{self.layer_idx}.mlp.up_proj.weight")
-    self.down_proj.weights = load_weight_tensor(f"model.layers.{self.layer_idx}.mlp.down_proj.weight")
+    self.gate_proj.load()
+    self.up_proj.load()
+    self.down_proj.load()
 
   def forward(self, x):
     # Apply the gate projection.
@@ -381,7 +421,7 @@ class LlamaModel:
     self.embed_tokens = LlamaEmbedding(config)
     self.decoder_layers = [LlamaDecoderLayer(idx, config) for idx in range(config["num_hidden_layers"])]
     self.post_decoder_norm = RMSNorm("model.norm.weight", config)
-    self.score_layer = LinearLayer(config, input_size=config["hidden_size"], output_size=config["vocab_size"])
+    self.score_layer = LinearLayer("lm_head.weight", config, input_size=config["hidden_size"], output_size=config["vocab_size"])
 
     # Create the causal mask.
     # False,True,True...True
@@ -399,9 +439,7 @@ class LlamaModel:
       layer.load()
 
     self.post_decoder_norm.load()
-
-    # TODO: Do the loading inside the LinearLayer class.
-    self.score_layer.weights = load_weight_tensor("lm_head.weight")
+    self.score_layer.load()
   
   def forward(self, input_ids, position_ids=None, attention_mask=None):
     # input_ids is of shape (batch_size, sequence_length).
