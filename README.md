@@ -38,3 +38,5 @@ This will be super slow, it is in no way optimized. Takes around 30 seconds/toke
 - [ ] Implement Flash Attention 2
 - [ ] Add support for more models (MoE models, etc.)
 - [ ] Implement inference for embedding models
+- [ ] Implement inference using another library (e.g. JAX)
+- [ ] Implement inference using another language (e.g. Rust)
