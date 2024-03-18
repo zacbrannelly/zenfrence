@@ -27,3 +27,14 @@ poetry run python3 main.py inference --prompt "What is the meaning of life?"
 ```
 
 This will be super slow, it is in no way optimized. Takes around 30 seconds/token on my machine (M1 MacBook Pro).
+
+
+## Roadmap
+
+- [x] Get a model to run inference (Llama-2-7b-chat-hf)
+- [ ] Implement top-k sampling
+- [ ] Implement top-p (nucleus) sampling
+- [ ] Optimize inference (CUDA Kernels, MPS Kernels, batching, sharding, etc.)
+- [ ] Implement Flash Attention 2
+- [ ] Add support for more models (MoE models, etc.)
+- [ ] Implement inference for embedding models
