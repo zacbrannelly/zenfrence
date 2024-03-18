@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "zenfrence"
+version = "0.1.0"
+description = "Inference engine for fun"
+authors = ["Zac Brannelly <zac.brannelly@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+safetensors = "^0.4.2"
+numpy = "^1.26.4"
+torch = "^2.2.1"
+fire = "^0.6.0"
+transformers = "^4.38.2"
+sentencepiece = "^0.2.0"
+protobuf = "^5.26.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
