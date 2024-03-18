@@ -163,7 +163,6 @@ class LlamaAttention:
     self.head_dim = self.config["hidden_size"] // self.config["num_attention_heads"]
     self.num_key_value_groups = self.config["num_attention_heads"] // self.config["num_key_value_heads"]
 
-    # TODO: Support for Group Query Attention (GQA) here.
     self.query_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["num_attention_heads"] * self.head_dim)
     self.key_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["num_key_value_heads"] * self.head_dim)
     self.value_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["num_key_value_heads"] * self.head_dim)
