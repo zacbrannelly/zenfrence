@@ -67,7 +67,7 @@ class LinearLayer:
       self.bias = torch.zeros(output_size)
 
   def load(self):
-    self.weights = load_weight_tensor(f"{self.weight_name}")
+    self.weights = load_weight_tensor(self.weight_name)
 
   def forward(self, x):
     # TODO: Validate that the input size matches the weights.
