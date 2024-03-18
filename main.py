@@ -17,7 +17,6 @@ torch.set_grad_enabled(False)
 model_config = {
   "bos_token_id": 1,
   "eos_token_id": 2,
-  # Need to implement SwiGLU for this to work.
   "hidden_act": "silu",
   "hidden_size": 4096,
   "initializer_range": 0.02,
@@ -162,6 +161,7 @@ class LlamaAttention:
     # Dimension of a single head.
     # e.g. 128 for a hidden size of 4096 and 32 attention heads.
     self.head_dim = self.config["hidden_size"] // self.config["num_attention_heads"]
+    self.num_key_value_groups = self.config["num_attention_heads"] // self.config["num_key_value_heads"]
 
     # TODO: Support for Group Query Attention (GQA) here.
     self.query_projection = LinearLayer(config, input_size=self.config["hidden_size"], output_size=self.config["num_attention_heads"] * self.head_dim)
@@ -191,11 +191,15 @@ class LlamaAttention:
 
     # Go from (batch_size, sequence_length, hidden_size) to (batch_size, sequence_length, num_attention_heads, head_dim)
     query = query.view(batch_size, sequence_length, self.config["num_attention_heads"], self.head_dim)
+
+    # Go from (batch_size, sequence_length, hidden_size) to (batch_size, sequence_length, num_key_value_heads, head_dim)
     key = key.view(batch_size, sequence_length, self.config["num_key_value_heads"], self.head_dim)
     value = value.view(batch_size, sequence_length, self.config["num_key_value_heads"], self.head_dim)
 
     # Go from (batch_size, sequence_length, num_attention_heads, head_dim) to (batch_size, num_attention_heads, sequence_length, head_dim)
     query = query.transpose(1, 2)
+
+    # Go from (batch_size, sequence_length, num_key_value_heads, head_dim) to (batch_size, num_key_value_heads, sequence_length, head_dim)
     key = key.transpose(1, 2)
     value = value.transpose(1, 2)
 
@@ -203,7 +207,13 @@ class LlamaAttention:
     # This adds positional information to the query and key vectors.
     query, key = self.rotation_embedding.forward(position_ids, query, key)
 
-    # TODO: Repeat the query and key vectors to match the number of attention heads when using GQA.
+    # Repeat the query and key vectors to match the number of attention heads when using GQA.
+    if self.num_key_value_groups > 1:
+      key = key[:, :, None, :, :].expand(-1, -1, self.num_key_value_groups, -1, -1)
+      key = key.reshape(batch_size, self.config["num_attention_heads"], sequence_length, self.head_dim)
+
+      value = value[:, :, None, :, :].expand(-1, -1, self.num_key_value_groups, -1, -1)
+      value = value.reshape(batch_size, self.config["num_attention_heads"], sequence_length, self.head_dim)
 
     # Calculate the Scaled Dot-Product Attention across all the heads in parallel.
     # After this step, attention is of shape (batch_size, num_attention_heads, sequence_length, sequence_length).
