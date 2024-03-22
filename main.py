@@ -428,6 +428,7 @@ class LlamaModel:
     # False,False,True...True
     # False,False,False,True...True
     # ...
+    # False,False,False...False
     # Each token can only attend to the tokens before it.
     self.causal_mask = torch.full((config["max_position_embeddings"], config["max_position_embeddings"]), fill_value=True, dtype=torch.bool)
     self.causal_mask = torch.triu(self.causal_mask, diagonal=1)
