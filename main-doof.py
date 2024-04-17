@@ -194,6 +194,7 @@ class MLP:
     # x is of shape (batch_size, sequence_length, hidden_size).
 
     # SwiGLU Feed Forward Network = (Swish(x * gate) * up) * down
+    # Where gate = W, up = V, and down = W2 in the paper.
     return self.down_proj.forward(
       self.activation(self.gate_proj.forward(x)) * self.up_proj.forward(x)
     )
